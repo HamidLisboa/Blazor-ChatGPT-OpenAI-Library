@@ -1,0 +1,144 @@
+﻿@page "/"
+@inject Services.GPTService GPTService
+@using OpenAI.Chat;
+@using System.Text.RegularExpressions
+@inject IJSRuntime JSRuntime
+@rendermode InteractiveServer
+
+<PageTitle>OpenAI GPT!</PageTitle>
+
+<h1>Ask OpenAI GPT!</h1>
+
+<div class="chat-container">
+    <div class="chat-messages">
+        @foreach (var dialog in dialogs)
+        {
+            <div class="chat-message @(dialog.IsPrompt ? "user-message" : "bot-message")">
+                @if (dialog.IsPrompt)
+                {
+                    // The dialog.MessageText is the user input
+                    <span class="message-text">@dialog.MessageText</span>
+                    <img src="images/User.webp" class="message-icon" alt="User icon" />
+                }
+                else
+                {
+                    // The dialog.MessageText is the bot response
+                    <img src="images/Robot.webp" class="message-icon" alt="Bot icon" />
+                    <span class="message-text">@((MarkupString)dialog.MessageText)</span>
+                }
+    )
+            </div>
+        }
+    </div>
+    <br />
+    <br />
+    <br />
+    <br />
+    <br />
+    <br />
+    <br />
+    <br />
+    <div class="chat-input">
+        <textarea rows="1" cols="5" type="text" @bind="_userInput" placeholder="Input your prompt here..." />
+        <button @onclick="AskOpenAIStreamingAsync">Ask</button>
+    </div>
+</div>
+@code{
+    #region [00] Shared Variables
+    private string _userInput = string.Empty;
+    private string _botResponse = string.Empty;
+    private string _myPrompt = string.Empty;
+    List<Dialog> dialogs = new List<Dialog>();
+    private Dialog lastDialog = null;
+    #endregion
+    #region [01] Shared Methods and Classes
+    private class Dialog
+    {
+        public string MessageText { get; set; }
+        public bool IsPrompt { get; set; } = true;
+    }
+    private string ConvertMarkdownToHtml(string message)
+    {
+        string html = message;
+        html = Regex.Replace(html, @"\*\*(.+?)\*\*", "<b>$1</b>"); // Bold
+        html = Regex.Replace(html, @"\*(.+?)\*", "<i>$1</i>"); // Italic
+        html = Regex.Replace(html, @"\`(.+?)\`", "<code>$1</code>"); // Inline code
+        html = Regex.Replace(html, @"\n\s*\n", "</p><p>"); // Paragraphs
+        html = Regex.Replace(html, @"\n", "<br>"); // New lines
+        html = Regex.Replace(html, @"(?m)^# (.+)", "<h1>$1</h1>"); // Headers);
+        html = Regex.Replace(html, @"(?m)^## (.+)", "<h2>$1</h2>"); // Headers);
+        html = Regex.Replace(html, @"(?m)^### (.+)", "<h3>$1</h3>"); // Headers);
+
+        return html;
+    }
+    #endregion
+    #region [02] Chat Completion method - non-streaming mode
+    // private void AskOpenAI()
+    // {
+    //     if (!string.IsNullOrEmpty(_userInput))
+    //     {
+    //         _myPrompt += _userInput + "\n";
+    //         dialogs.Add(new Dialog { MessageText = _myPrompt, IsPrompt = true });
+    //         _userInput = string.Empty;
+    //         var response = GPTService.GetResponse(_myPrompt);
+    //         dialogs.Add(new Dialog { MessageText = ConvertMarkdownToHtml(response.Content[0].Text), IsPrompt = false });
+    //         StateHasChanged();
+    //         Thread.Sleep(100);
+    //         JSRuntime.InvokeVoidAsync("scrollToBottom");
+    //     }
+    // }
+    // private async void AskOpenAIAsync()
+    // {
+    //     if (!string.IsNullOrEmpty(_userInput))
+    //     {
+    //         _myPrompt += _userInput + "\n";
+    //         dialogs.Add(new Dialog { MessageText = _myPrompt, IsPrompt = true });
+    //         _userInput = string.Empty;
+    //         var response = await GPTService.GetResponseAsync(_myPrompt);
+    //         dialogs.Add(new Dialog { MessageText = ConvertMarkdownToHtml(response.Content[0].Text), IsPrompt = false });
+    //         StateHasChanged();
+    //         Thread.Sleep(100);
+    //         await JSRuntime.InvokeVoidAsync("scrollToBottom");
+    //     }
+    // }
+    #endregion
+    #region [03] Chat Completion method - streaming mode
+    private async void AskOpenAIStreamingAsync()
+    {
+        if (!string.IsNullOrEmpty(_userInput))
+        {
+            _myPrompt += _userInput + "\n";
+            dialogs.Add(new Dialog { MessageText = _myPrompt, IsPrompt = true });
+            _userInput = string.Empty;
+            dialogs.Add(new Dialog { 
+                    MessageText = "", 
+                    IsPrompt = false });
+            lastDialog = dialogs.LastOrDefault();
+            var response = GPTService.GetStreamingResponseAsync(_myPrompt);
+            await foreach(StreamingChatCompletionUpdate completionUpdate in response)
+            {
+                if(completionUpdate.ContentUpdate.Count>0)
+                {
+                    lastDialog.MessageText += completionUpdate.ContentUpdate[0].Text;
+                    lastDialog.MessageText = ConvertMarkdownToHtml(lastDialog.MessageText);
+                    //lastDialog.MessageText = ConvertMarkdownToHtml(completionUpdate.ContentUpdate[0].Text);
+                    StateHasChanged();
+                    Thread.Sleep(100);
+                    await JSRuntime.InvokeVoidAsync("scrollToBottom");
+                }
+                if (completionUpdate.FinishReason != null)
+                {
+                    lastDialog.MessageText += "<br/>";
+                    lastDialog.MessageText += $"<p style=´color: blue;´><b>Response Finished Reason: {completionUpdate.FinishReason}</b></p>";
+                    lastDialog.MessageText += "<hr/>";
+                    StateHasChanged();
+                    Thread.Sleep(100);
+                    await JSRuntime.InvokeVoidAsync("scrollToBottom");
+                }
+            }
+            
+            
+        }
+    }
+    #endregion
+}
