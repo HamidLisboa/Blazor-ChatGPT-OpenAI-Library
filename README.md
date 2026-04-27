@@ -14,3 +14,22 @@ Backend: ASP.NET Core
 Language: C#
 AI Integration: OpenAI .NET SDK
 Architecture: Client-server (Blazor Server)
+
+What I Learned
+Using the official OpenAI .NET SDK in real-world applications
+Building AI-powered web apps with Blazor and .NET 8
+Implementing streaming responses with the SDK
+Designing responsive and interactive AI user interfaces
+
+📄 License
+
+This project is for learning and demonstration purposes.
+
+🙋‍♂️ Author
+
+Hamidreza Hashemi
+
+💼 Full Stack .NET Developer
+🌍 Lisbon, Portugal
+🔗 LinkedIn: https://www.linkedin.com/in/hamidreza-hashemi-87b955b1
+💻 GitHub: https://github.com/HamidLisboa
