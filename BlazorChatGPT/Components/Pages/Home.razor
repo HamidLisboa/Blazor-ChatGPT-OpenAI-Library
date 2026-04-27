@@ -1,6 +1,7 @@
 ﻿@page "/"
 @inject Services.GPTService GPTService
 @using OpenAI.Chat;
+@using OpenAI.Images;
 @using System.Text.RegularExpressions
 @inject IJSRuntime JSRuntime
 @rendermode InteractiveServer
@@ -24,7 +25,15 @@
                 {
                     // The dialog.MessageText is the bot response
                     <img src="images/Robot.webp" class="message-icon" alt="Bot icon" />
+                    if (!string.IsNullOrEmpty(dialog.ImageUri))
+                    {
+                        <a href="@dialog.ImageUri" target="_blank">
+                            <img src="@dialog.ImageUri" style="width:200px; height:auto;" alt="Generated image" />
+                        </a>
+                    }
+                    else{
                     <span class="message-text">@((MarkupString)dialog.MessageText)</span>
+                    }
                 }
     )
             </div>
@@ -40,7 +49,7 @@
     <br />
     <div class="chat-input">
         <textarea rows="1" cols="5" type="text" @bind="_userInput" placeholder="Input your prompt here..." />
-        <button @onclick="AskOpenAIStreamingAsync">Ask</button>
+        <button @onclick="GenerateImageAsync">Send</button>
     </div>
 </div>
 @code{
@@ -56,6 +65,7 @@
     {
         public string MessageText { get; set; }
         public bool IsPrompt { get; set; } = true;
+        public string? ImageUri { get; set; }
     }
     private string ConvertMarkdownToHtml(string message)
     {
@@ -72,37 +82,8 @@
         return html;
     }
     #endregion
-    #region [02] Chat Completion method - non-streaming mode
-    // private void AskOpenAI()
-    // {
-    //     if (!string.IsNullOrEmpty(_userInput))
-    //     {
-    //         _myPrompt += _userInput + "\n";
-    //         dialogs.Add(new Dialog { MessageText = _myPrompt, IsPrompt = true });
-    //         _userInput = string.Empty;
-    //         var response = GPTService.GetResponse(_myPrompt);
-    //         dialogs.Add(new Dialog { MessageText = ConvertMarkdownToHtml(response.Content[0].Text), IsPrompt = false });
-    //         StateHasChanged();
-    //         Thread.Sleep(100);
-    //         JSRuntime.InvokeVoidAsync("scrollToBottom");
-    //     }
-    // }
-    // private async void AskOpenAIAsync()
-    // {
-    //     if (!string.IsNullOrEmpty(_userInput))
-    //     {
-    //         _myPrompt += _userInput + "\n";
-    //         dialogs.Add(new Dialog { MessageText = _myPrompt, IsPrompt = true });
-    //         _userInput = string.Empty;
-    //         var response = await GPTService.GetResponseAsync(_myPrompt);
-    //         dialogs.Add(new Dialog { MessageText = ConvertMarkdownToHtml(response.Content[0].Text), IsPrompt = false });
-    //         StateHasChanged();
-    //         Thread.Sleep(100);
-    //         await JSRuntime.InvokeVoidAsync("scrollToBottom");
-    //     }
-    // }
-    #endregion
-    #region [03] Chat Completion method - streaming mode
+
+    #region [02] Chat Completion method - streaming mode
     private async void AskOpenAIStreamingAsync()
     {
         if (!string.IsNullOrEmpty(_userInput))
@@ -136,9 +117,30 @@
                     await JSRuntime.InvokeVoidAsync("scrollToBottom");
                 }
             }
-            
-            
+
+
         }
+    }
+    #endregion
+    #region [03] Image Generation method
+    private async void GenerateImageAsync()
+    {
+        _myPrompt += _userInput + "\n";
+        dialogs.Add(new Dialog { MessageText = _myPrompt, IsPrompt = true, ImageUri = null });
+        _userInput = string.Empty;
+        dialogs.Add(new Dialog
+        {
+            MessageText = "",
+            IsPrompt = false,
+            ImageUri = null
+        });
+        lastDialog = dialogs.LastOrDefault();
+        lastDialog.MessageText = "Generating image...";
+        GeneratedImage image = await GPTService.GenerateImageAsync(_myPrompt);
+        lastDialog.ImageUri = image.ImageUri.ToString();
+        lastDialog.MessageText = image.RevisedPrompt;
+        StateHasChanged();
+        await JSRuntime.InvokeVoidAsync("scrollToBottom");
     }
     #endregion
 }
