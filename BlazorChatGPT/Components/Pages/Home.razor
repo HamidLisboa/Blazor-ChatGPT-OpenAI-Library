@@ -25,15 +25,9 @@
                 {
                     // The dialog.MessageText is the bot response
                     <img src="images/Robot.webp" class="message-icon" alt="Bot icon" />
-                    if (!string.IsNullOrEmpty(dialog.ImageUri))
+                    if (string.IsNullOrEmpty(dialog.ImageUri))
                     {
-                        
-                            <img src="@dialog.ImageUri" style="width:200px; height:auto;" alt="Generated image" 
-                            @onclick="() => OpenModal(dialog.ImageUri)" />
-                        
-                    }
-                    else{
-                    <span class="message-text">@((MarkupString)dialog.MessageText)</span>
+                        <span class="message-text">@((MarkupString)dialog.MessageText)</span>          
                     }
                 }
     )
@@ -65,6 +59,7 @@
     private Timer _timer;
     private bool isModalOpen = false;
     private string? modalImageSrc;
+    private DotNetObjectReference<Home> _dotNetRef;
     #endregion
     #region [01] Shared Methods and Classes
     private class Dialog
@@ -84,7 +79,8 @@
         html = Regex.Replace(html, @"(?m)^# (.+)", "<h1>$1</h1>"); // Headers);
         html = Regex.Replace(html, @"(?m)^## (.+)", "<h2>$1</h2>"); // Headers);
         html = Regex.Replace(html, @"(?m)^### (.+)", "<h3>$1</h3>"); // Headers);
-
+        html = Regex.Replace(html, @"(?:!)\[(?<alt>[^\]]+)\]\((?:sandbox:)?(?<path>[^)]+)\)",
+                "<img src=\"${path}\" alt=\"${alt}\" onclick=\"openModalFromJs('${path}')\" />");
         return html;
     }
     #endregion
@@ -150,59 +146,71 @@
     public void Dispose()
     {
         _timer?.Dispose();
+        _dotNetRef?.Dispose();
     }
     #endregion
     #region [03] Image Generation method
-    private async void GenerateImageUriAsync()
+    // private async void GenerateImageUriAsync()
+    // {
+    //     _myPrompt += _userInput + "\n";
+    //     dialogs.Add(new Dialog { MessageText = _myPrompt, IsPrompt = true, ImageUri = null });
+    //     _userInput = string.Empty;
+    //     _isLoading = true;
+    //     _timer.Change(0, 1000);
+    //     dialogs.Add(new Dialog
+    //     {
+    //         MessageText = "",
+    //         IsPrompt = false,
+    //         ImageUri = null
+    //     });
+    //     lastDialog = dialogs.LastOrDefault();
+    //     lastDialog.MessageText = "Generating image...";
+    //     GeneratedImage image = await GPTService.GenerateImageToUriAsync(_myPrompt);
+    //     _isLoading = false;
+    //     _timer.Change(Timeout.Infinite, Timeout.Infinite);
+    //     lastDialog.ImageUri = image.ImageUri.ToString();
+    //     lastDialog.MessageText = image.RevisedPrompt;
+    //     StateHasChanged();
+    //     await JSRuntime.InvokeVoidAsync("scrollToBottom");
+    // }
+    // private async void GenerateImageBytesAsync()
+    // {
+    //     _myPrompt += _userInput + "\n";
+    //     dialogs.Add(new Dialog { MessageText = _myPrompt, IsPrompt = true, ImageUri = null });
+    //     _userInput = string.Empty;
+    //     _isLoading = true;
+    //     _timer.Change(0, 1000);
+    //     dialogs.Add(new Dialog
+    //     {
+    //         MessageText = "",
+    //         IsPrompt = false,
+    //         ImageUri = null
+    //     });
+    //     lastDialog = dialogs.LastOrDefault();
+    //     lastDialog.MessageText = "Generating image...";
+    //     GeneratedImage image = await GPTService.GenerateImageToBytesAsync(_myPrompt);
+    //     _isLoading = false;
+    //     _timer.Change(Timeout.Infinite, Timeout.Infinite);
+    //     lastDialog.ImageUri = $"data:image/png;base64,{Convert.ToBase64String(image.ImageBytes)}";
+    //     lastDialog.MessageText = image.RevisedPrompt;
+    //     StateHasChanged();
+    //     await JSRuntime.InvokeVoidAsync("scrollToBottom");
+    // }
+    protected override void OnAfterRender(bool firstRender)
     {
-        _myPrompt += _userInput + "\n";
-        dialogs.Add(new Dialog { MessageText = _myPrompt, IsPrompt = true, ImageUri = null });
-        _userInput = string.Empty;
-        _isLoading = true;
-        _timer.Change(0, 1000);
-        dialogs.Add(new Dialog
+        if (firstRender)
         {
-            MessageText = "",
-            IsPrompt = false,
-            ImageUri = null
-        });
-        lastDialog = dialogs.LastOrDefault();
-        lastDialog.MessageText = "Generating image...";
-        GeneratedImage image = await GPTService.GenerateImageToUriAsync(_myPrompt);
-        _isLoading = false;
-        _timer.Change(Timeout.Infinite, Timeout.Infinite);
-        lastDialog.ImageUri = image.ImageUri.ToString();
-        lastDialog.MessageText = image.RevisedPrompt;
-        StateHasChanged();
-        await JSRuntime.InvokeVoidAsync("scrollToBottom");
+            _dotNetRef = DotNetObjectReference.Create(this);
+            JSRuntime.InvokeVoidAsync("setImageModalInvoker", _dotNetRef);
+        }
     }
-    private async void GenerateImageBytesAsync()
-    {
-        _myPrompt += _userInput + "\n";
-        dialogs.Add(new Dialog { MessageText = _myPrompt, IsPrompt = true, ImageUri = null });
-        _userInput = string.Empty;
-        _isLoading = true;
-        _timer.Change(0, 1000);
-        dialogs.Add(new Dialog
-        {
-            MessageText = "",
-            IsPrompt = false,
-            ImageUri = null
-        });
-        lastDialog = dialogs.LastOrDefault();
-        lastDialog.MessageText = "Generating image...";
-        GeneratedImage image = await GPTService.GenerateImageToBytesAsync(_myPrompt);
-        _isLoading = false;
-        _timer.Change(Timeout.Infinite, Timeout.Infinite);
-        lastDialog.ImageUri = $"data:image/png;base64,{Convert.ToBase64String(image.ImageBytes)}";
-        lastDialog.MessageText = image.RevisedPrompt;
-        StateHasChanged();
-        await JSRuntime.InvokeVoidAsync("scrollToBottom");
-    }
-    private void OpenModal(string imageSrc)
+    [JSInvokable]
+    public Task OpenModal(string imageSrc)
     {
         modalImageSrc = imageSrc;
         isModalOpen = true;
+        StateHasChanged();
+        return Task.CompletedTask;
     }
     private void CloseModal()
     {
