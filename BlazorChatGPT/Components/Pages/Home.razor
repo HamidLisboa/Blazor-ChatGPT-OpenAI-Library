@@ -27,9 +27,10 @@
                     <img src="images/Robot.webp" class="message-icon" alt="Bot icon" />
                     if (!string.IsNullOrEmpty(dialog.ImageUri))
                     {
-                        <a href="@dialog.ImageUri" target="_blank">
-                            <img src="@dialog.ImageUri" style="width:200px; height:auto;" alt="Generated image" />
-                        </a>
+                        
+                            <img src="@dialog.ImageUri" style="width:200px; height:auto;" alt="Generated image" 
+                            @onclick="() => OpenModal(dialog.ImageUri)" />
+                        
                     }
                     else{
                     <span class="message-text">@((MarkupString)dialog.MessageText)</span>
@@ -49,9 +50,10 @@
     <br />
     <div class="chat-input">
         <textarea rows="1" cols="5" type="text" @bind="_userInput" placeholder="Input your prompt here..." />
-        <button @onclick="GenerateImageAsync">Send</button>
+        <button @onclick="GenerateImageBytesAsync">Send</button>
     </div>
 </div>
+<ImageModal IsOpen="@isModalOpen" ImageSrc="@modalImageSrc" OnClose="CloseModal" />
 @code{
     #region [00] Shared Variables
     private string _userInput = string.Empty;
@@ -59,6 +61,10 @@
     private string _myPrompt = string.Empty;
     List<Dialog> dialogs = new List<Dialog>();
     private Dialog lastDialog = null;
+    private bool _isLoading;
+    private Timer _timer;
+    private bool isModalOpen = false;
+    private string? modalImageSrc;
     #endregion
     #region [01] Shared Methods and Classes
     private class Dialog
@@ -117,17 +123,43 @@
                     await JSRuntime.InvokeVoidAsync("scrollToBottom");
                 }
             }
-
-
         }
+    }
+    protected override void OnInitialized()
+    {
+        _timer = new Timer(UpdateLoadingDots, null, Timeout.Infinite,1000);
+    }
+    private void UpdateLoadingDots(object state)
+    {
+        if (_isLoading)
+        {
+            if (lastDialog != null)
+            {
+                if (lastDialog.MessageText.EndsWith("..."))
+                {
+                    lastDialog.MessageText = lastDialog.MessageText.Substring(0, lastDialog.MessageText.Length - 3);
+                }
+                else
+                {
+                    lastDialog.MessageText += ".";
+                }
+                InvokeAsync(StateHasChanged);
+            }
+        }
+    }
+    public void Dispose()
+    {
+        _timer?.Dispose();
     }
     #endregion
     #region [03] Image Generation method
-    private async void GenerateImageAsync()
+    private async void GenerateImageUriAsync()
     {
         _myPrompt += _userInput + "\n";
         dialogs.Add(new Dialog { MessageText = _myPrompt, IsPrompt = true, ImageUri = null });
         _userInput = string.Empty;
+        _isLoading = true;
+        _timer.Change(0, 1000);
         dialogs.Add(new Dialog
         {
             MessageText = "",
@@ -136,11 +168,46 @@
         });
         lastDialog = dialogs.LastOrDefault();
         lastDialog.MessageText = "Generating image...";
-        GeneratedImage image = await GPTService.GenerateImageAsync(_myPrompt);
+        GeneratedImage image = await GPTService.GenerateImageToUriAsync(_myPrompt);
+        _isLoading = false;
+        _timer.Change(Timeout.Infinite, Timeout.Infinite);
         lastDialog.ImageUri = image.ImageUri.ToString();
         lastDialog.MessageText = image.RevisedPrompt;
         StateHasChanged();
         await JSRuntime.InvokeVoidAsync("scrollToBottom");
+    }
+    private async void GenerateImageBytesAsync()
+    {
+        _myPrompt += _userInput + "\n";
+        dialogs.Add(new Dialog { MessageText = _myPrompt, IsPrompt = true, ImageUri = null });
+        _userInput = string.Empty;
+        _isLoading = true;
+        _timer.Change(0, 1000);
+        dialogs.Add(new Dialog
+        {
+            MessageText = "",
+            IsPrompt = false,
+            ImageUri = null
+        });
+        lastDialog = dialogs.LastOrDefault();
+        lastDialog.MessageText = "Generating image...";
+        GeneratedImage image = await GPTService.GenerateImageToBytesAsync(_myPrompt);
+        _isLoading = false;
+        _timer.Change(Timeout.Infinite, Timeout.Infinite);
+        lastDialog.ImageUri = $"data:image/png;base64,{Convert.ToBase64String(image.ImageBytes)}";
+        lastDialog.MessageText = image.RevisedPrompt;
+        StateHasChanged();
+        await JSRuntime.InvokeVoidAsync("scrollToBottom");
+    }
+    private void OpenModal(string imageSrc)
+    {
+        modalImageSrc = imageSrc;
+        isModalOpen = true;
+    }
+    private void CloseModal()
+    {
+        modalImageSrc = null;
+        isModalOpen = false;
     }
     #endregion
 }

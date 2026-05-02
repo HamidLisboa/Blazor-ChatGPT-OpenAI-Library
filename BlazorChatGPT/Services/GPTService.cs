@@ -1,6 +1,8 @@
 ﻿using OpenAI.Chat;
 using OpenAI.Images;
 using System.ClientModel;
+using Microsoft.AspNetCore.Hosting;
+
 namespace BlazorChatGPT.Services
 {
     public class GPTService
@@ -8,6 +10,7 @@ namespace BlazorChatGPT.Services
         #region [00] Shared Variables
         private ChatClient _chatClient;
         private ImageClient _imagelient;
+
         #endregion
         #region [01] Constractor of GPTService
         public GPTService(string gptModel="gpt-4o-mini", string imageModel="dall-e-3")
@@ -18,6 +21,7 @@ namespace BlazorChatGPT.Services
             _imagelient = new (
                 model: imageModel,
                 apiKey: Environment.GetEnvironmentVariable("OPENAI_APIKEY"));
+            ;
         }
         #endregion
         #region [02] Chat Completion method - streaming mode
@@ -35,11 +39,32 @@ namespace BlazorChatGPT.Services
         }
         #endregion
         #region [03] Generating Images using OpenAI´s Image API
-        public async Task<GeneratedImage> GenerateImageAsync(string prompt)
+        public async Task<GeneratedImage> GenerateImageToUriAsync(string prompt)
         {
-            GeneratedImage image = await _imagelient.GenerateImageAsync(prompt);
+            ImageGenerationOptions options = new()
+                {
+                    Quality= GeneratedImageQuality.High,
+                    Size = GeneratedImageSize.W1024xH1024,
+                    Style = GeneratedImageStyle.Natural,
+                    ResponseFormat = GeneratedImageFormat.Uri
+            };
+            GeneratedImage image = await _imagelient.GenerateImageAsync(prompt,options);
             return image;
         }
+        public async Task<GeneratedImage> GenerateImageToBytesAsync(string prompt)
+        {
+            ImageGenerationOptions options = new()
+                {
+                    Quality= GeneratedImageQuality.High,
+                    Size = GeneratedImageSize.W1024xH1024,
+                    Style = GeneratedImageStyle.Natural,
+                    ResponseFormat = GeneratedImageFormat.Bytes
+            };
+            GeneratedImage image = await _imagelient.GenerateImageAsync(prompt,options);
+            return image;
+        }
+        
+       
         #endregion
     }
 }

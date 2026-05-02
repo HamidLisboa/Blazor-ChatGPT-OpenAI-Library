@@ -1,0 +1,24 @@
+﻿@if (IsOpen && !string.IsNullOrWhiteSpace(ImageSrc))
+{
+    <div style="position: fixed; left: 0; top: 0; width: 100vw; height: 90vh; background: rgba(0,0,0,0.6); z-index: 100; display: flex; align-items: center; justify-content: center;"
+         @onclick="CloseModal">
+        <div style="background: white; padding: 10px; border-radius: 8px; box-shadow: 0 0 8px #0008; position: relative;"
+             @onclick:stopPropagation>
+            <button style="position: absolute; top: 5px; right: 10px; font-size: 1.5rem; border: none; background: transparent; cursor: pointer;"
+                    @onclick="CloseModal"
+                    title="Close">
+                ×
+            </button>
+            <img src="@ImageSrc" style="max-width: 90vw; max-height: 80vh; display: block; margin: auto;" />
+        </div>
+    </div>
+}
+@code {
+    [Parameter] public bool IsOpen { get; set; }
+    [Parameter] public string ImageSrc { get; set; }
+    [Parameter] public EventCallback OnClose { get; set; }
+    private void CloseModal()
+    {
+        OnClose.InvokeAsync(null);
+    }
+}
