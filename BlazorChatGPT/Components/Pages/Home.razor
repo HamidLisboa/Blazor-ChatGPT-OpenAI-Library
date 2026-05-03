@@ -44,7 +44,8 @@
     <br />
     <div class="chat-input">
         <textarea rows="1" cols="5" type="text" @bind="_userInput" placeholder="Input your prompt here..." />
-        <button @onclick="GenerateImageBytesAsync">Send</button>
+        <button @onclick="AskOpenAIStreamingAsync">Ask</button>
+        
     </div>
 </div>
 <ImageModal IsOpen="@isModalOpen" ImageSrc="@modalImageSrc" OnClose="CloseModal" />
@@ -76,11 +77,11 @@
         html = Regex.Replace(html, @"\`(.+?)\`", "<code>$1</code>"); // Inline code
         html = Regex.Replace(html, @"\n\s*\n", "</p><p>"); // Paragraphs
         html = Regex.Replace(html, @"\n", "<br>"); // New lines
-        html = Regex.Replace(html, @"(?m)^# (.+)", "<h1>$1</h1>"); // Headers);
-        html = Regex.Replace(html, @"(?m)^## (.+)", "<h2>$1</h2>"); // Headers);
-        html = Regex.Replace(html, @"(?m)^### (.+)", "<h3>$1</h3>"); // Headers);
+        html = Regex.Replace(html, @"(?m)^# (.+)", "<h1>$1</h1>"); // Headers
+        html = Regex.Replace(html, @"(?m)^## (.+)", "<h2>$1</h2>"); // Headers
+        html = Regex.Replace(html, @"(?m)^### (.+)", "<h3>$1</h3>"); // Headers
         html = Regex.Replace(html, @"(?:!)\[(?<alt>[^\]]+)\]\((?:sandbox:)?(?<path>[^)]+)\)",
-                "<img src=\"${path}\" alt=\"${alt}\" onclick=\"openModalFromJs('${path}')\" />");
+                "<img src=\"${path}\" alt=\"${alt}\" onclick=\"openModalFromJs('${path}')\" />");//Images
         return html;
     }
     #endregion
@@ -106,8 +107,9 @@
                     lastDialog.MessageText = ConvertMarkdownToHtml(lastDialog.MessageText);
                     //lastDialog.MessageText = ConvertMarkdownToHtml(completionUpdate.ContentUpdate[0].Text);
                     StateHasChanged();
+                    await JSRuntime.InvokeVoidAsync("scrollToBottom"); 
                     Thread.Sleep(100);
-                    await JSRuntime.InvokeVoidAsync("scrollToBottom");
+                    
                 }
                 if (completionUpdate.FinishReason != null)
                 {
