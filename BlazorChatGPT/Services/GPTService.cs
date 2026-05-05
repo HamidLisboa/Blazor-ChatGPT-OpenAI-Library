@@ -9,7 +9,7 @@ namespace BlazorChatGPT.Services
     {
         #region [00] Shared Variables
         private ChatClient _chatClient;
-        private ImageClient _imagelient;
+        private ImageClient _imageclient;
 
         #endregion
         #region [01] Constractor of GPTService
@@ -18,22 +18,25 @@ namespace BlazorChatGPT.Services
             _chatClient = new ChatClient(
                 model: gptModel,
                 apiKey: Environment.GetEnvironmentVariable("OPENAI_APIKEY"));
-            _imagelient = new (
+            _imageclient = new ImageClient(
                 model: imageModel,
                 apiKey: Environment.GetEnvironmentVariable("OPENAI_APIKEY"));
             ;
         }
         #endregion
+
         #region [02] Chat Completion method - streaming mode
-        public AsyncCollectionResult<StreamingChatCompletionUpdate> GetStreamingResponseAsync(string prompt)
+        public AsyncCollectionResult<StreamingChatCompletionUpdate> GetStreamingResponseAsync(List<ChatMessage> chatHistory)
         {
             ChatCompletionOptions options = new ChatCompletionOptions();
             options.MaxOutputTokenCount = 1000;
-            List<ChatMessage> messages = 
-                [ChatMessage.CreateSystemMessage("Your name is Bombardini Corcodili and You are a helpful assistant."),
-                ChatMessage.CreateUserMessage(prompt)];
+            //List<ChatMessage> messages = 
+            //    [ChatMessage.CreateSystemMessage("Your name is Bombardini Corcodili and You are a helpful assistant."),
+            //    ChatMessage.CreateUserMessage(prompt)];
 
-            AsyncCollectionResult<StreamingChatCompletionUpdate> completionUpdates = 
+            List<ChatMessage> messages = chatHistory;
+
+			AsyncCollectionResult<StreamingChatCompletionUpdate> completionUpdates = 
                 _chatClient.CompleteChatStreamingAsync(messages, options);
             return completionUpdates;
         }
@@ -48,7 +51,7 @@ namespace BlazorChatGPT.Services
                     Style = GeneratedImageStyle.Natural,
                     ResponseFormat = GeneratedImageFormat.Uri
             };
-            GeneratedImage image = await _imagelient.GenerateImageAsync(prompt,options);
+            GeneratedImage image = await _imageclient.GenerateImageAsync(prompt,options);
             return image;
         }
         public async Task<GeneratedImage> GenerateImageToBytesAsync(string prompt)
@@ -60,7 +63,7 @@ namespace BlazorChatGPT.Services
                     Style = GeneratedImageStyle.Natural,
                     ResponseFormat = GeneratedImageFormat.Bytes
             };
-            GeneratedImage image = await _imagelient.GenerateImageAsync(prompt,options);
+            GeneratedImage image = await _imageclient.GenerateImageAsync(prompt,options);
             return image;
         }
         

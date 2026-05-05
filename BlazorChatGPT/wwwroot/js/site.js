@@ -4,11 +4,14 @@
         chatMessages.scrollTop = chatMessages.scrollHeight;
     }
 }
+
 window.setImageModalInvoker = function (dotNetObjRef) {
-    window.setImageModalInvoker = dotNetObjRef;
+    window.imageModalInvoker = dotNetObjRef;
 }
-function openModalFromJS = function (imageSrc) {
-    if (window.setImageModalInvoker) {
-        window.setImageModalInvoker.invokeMethodAsync('OpenModal', imageSrc);
+
+// This function is used to call the .NET inline method - OpenModal.
+window.openModalFromJs = function (imageSrc) {
+    if (window.imageModalInvoker) {
+        window.imageModalInvoker.invokeMethodAsync('OpenModal', imageSrc);
     }
 }

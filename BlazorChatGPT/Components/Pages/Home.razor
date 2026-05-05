@@ -10,7 +10,7 @@
 
 <h1>Ask OpenAI GPT!</h1>
 
-<div class="chat-container">
+<div class="chat-container modal-dialog-scrollable">
     <div class="chat-messages">
         @foreach (var dialog in dialogs)
         {
@@ -25,7 +25,7 @@
                 {
                     // The dialog.MessageText is the bot response
                     <img src="images/Robot.webp" class="message-icon" alt="Bot icon" />
-                    if (string.IsNullOrEmpty(dialog.ImageUri))
+                    if (!string.IsNullOrEmpty(dialog.ImageUri))
                     {
                         
                             <img src="@dialog.ImageUri" style="width:200px; height:auto;" alt="Generated image" 
@@ -33,7 +33,7 @@
                         
                     }
                     else{
-                    <span class="message-text">@((MarkupString)dialog.MessageText)</span>
+                        <span class="message-text">@((MarkupString)dialog.MessageText)</span>
                     }
                 }
     )
@@ -48,15 +48,25 @@
     <br />
     <br />
     <br />
+    
     <div class="chat-input">
         <textarea rows="1" cols="5" type="text" @bind="_userInput" placeholder="Input your prompt here..." />
-        <button @onclick="GenerateImageBytesAsync">Send</button>
+        <label class="btn-info" style="margin-left:8px; margin-right:8px; display:inline-flex; align-items:center;">
+            <input type="checkbox" @bind="isImageMode" />
+            <span>Image mode</span>
+        </label>
+        
+
+        <button @onclick="OnAskClicked">Ask</button>
+        @* <button @onclick="GenerateImageBytesAsync">Send</button> *@
     </div>
+    
 </div>
 <ImageModal IsOpen="@isModalOpen" ImageSrc="@modalImageSrc" OnClose="CloseModal" />
 @code{
     #region [00] Shared Variables
     private string _userInput = string.Empty;
+    private bool isImageMode = false;
     private string _botResponse = string.Empty;
     private string _myPrompt = string.Empty;
     List<Dialog> dialogs = new List<Dialog>();
@@ -65,6 +75,8 @@
     private Timer _timer;
     private bool isModalOpen = false;
     private string? modalImageSrc;
+    List<ChatMessage> chatHistory = new();
+
     #endregion
     #region [01] Shared Methods and Classes
     private class Dialog
@@ -88,9 +100,35 @@
                 "<img src=\"${path}\" alt=\"${alt}\" onclick=\"openModalFromJs('${path}')\" />");//Images
         return html;
     }
+    protected override void OnInitialized()
+    {
+        _timer = new Timer(UpdateLoadingDots, null, Timeout.Infinite, 1000);
+    }
+    private void UpdateLoadingDots(object state)
+    {
+        if (_isLoading && lastDialog != null)
+        {
+            
+            if (lastDialog.MessageText.EndsWith("..."))
+            {
+                lastDialog.MessageText = lastDialog.MessageText.Substring(0, lastDialog.MessageText.Length - 3);
+            }
+            else
+            {
+                lastDialog.MessageText += ".";
+            }
+            InvokeAsync(StateHasChanged);
+            
+        }
+    }
+    public void Dispose()
+    {
+        _timer?.Dispose();
+    }
     #endregion
 
     #region [02] Chat Completion method - streaming mode
+   
     private async void AskOpenAIStreamingAsync()
     {
         if (!string.IsNullOrEmpty(_userInput))
@@ -102,7 +140,8 @@
                     MessageText = "", 
                     IsPrompt = false });
             lastDialog = dialogs.LastOrDefault();
-            var response = GPTService.GetStreamingResponseAsync(_myPrompt);
+            chatHistory.Add(ChatMessage.CreateUserMessage(_myPrompt));
+            var response = GPTService.GetStreamingResponseAsync(chatHistory);
             await foreach(StreamingChatCompletionUpdate completionUpdate in response)
             {
                 if(completionUpdate.ContentUpdate.Count>0)
@@ -110,6 +149,7 @@
                     lastDialog.MessageText += completionUpdate.ContentUpdate[0].Text;
                     lastDialog.MessageText = ConvertMarkdownToHtml(lastDialog.MessageText);
                     //lastDialog.MessageText = ConvertMarkdownToHtml(completionUpdate.ContentUpdate[0].Text);
+                    _myPrompt = string.Empty;
                     StateHasChanged();
                     await JSRuntime.InvokeVoidAsync("scrollToBottom"); 
                     Thread.Sleep(100);
@@ -117,9 +157,11 @@
                 }
                 if (completionUpdate.FinishReason != null)
                 {
+                    chatHistory.Add(ChatMessage.CreateAssistantMessage(lastDialog.MessageText));
                     lastDialog.MessageText += "<br/>";
                     lastDialog.MessageText += $"<p style=´color: blue;´><b>Response Finished Reason: {completionUpdate.FinishReason}</b></p>";
                     lastDialog.MessageText += "<hr/>";
+                    _myPrompt = string.Empty;
                     StateHasChanged();
                     Thread.Sleep(100);
                     await JSRuntime.InvokeVoidAsync("scrollToBottom");
@@ -127,61 +169,9 @@
             }
         }
     }
-    protected override void OnInitialized()
-    {
-        _timer = new Timer(UpdateLoadingDots, null, Timeout.Infinite,1000);
-    }
-    private void UpdateLoadingDots(object state)
-    {
-        if (_isLoading)
-        {
-            if (lastDialog != null)
-            {
-                if (lastDialog.MessageText.EndsWith("..."))
-                {
-                    lastDialog.MessageText = lastDialog.MessageText.Substring(0, lastDialog.MessageText.Length - 3);
-                }
-                else
-                {
-                    lastDialog.MessageText += ".";
-                }
-                InvokeAsync(StateHasChanged);
-            }
-        }
-    }
-    public void Dispose()
-    {
-        _timer?.Dispose();
-    }
-    protected override void OnInitialized()
-    {
-        _timer = new Timer(UpdateLoadingDots, null, Timeout.Infinite,1000);
-    }
-    private void UpdateLoadingDots(object state)
-    {
-        if (_isLoading)
-        {
-            if (lastDialog != null)
-            {
-                if (lastDialog.MessageText.EndsWith("..."))
-                {
-                    lastDialog.MessageText = lastDialog.MessageText.Substring(0, lastDialog.MessageText.Length - 3);
-                }
-                else
-                {
-                    lastDialog.MessageText += ".";
-                }
-                InvokeAsync(StateHasChanged);
-            }
-        }
-    }
-    public void Dispose()
-    {
-        _timer?.Dispose();
-        _dotNetRef?.Dispose();
-    }
     #endregion
     #region [03] Image Generation method
+    
     private async void GenerateImageUriAsync()
     {
         _myPrompt += _userInput + "\n";
@@ -203,13 +193,9 @@
         lastDialog.ImageUri = image.ImageUri.ToString();
         lastDialog.MessageText = image.RevisedPrompt;
         StateHasChanged();
-        return Task.CompletedTask;
+        
     }
-    private void CloseModal()
-    {
-        modalImageSrc = null;
-        isModalOpen = false;
-    }
+    
     private async void GenerateImageBytesAsync()
     {
         _myPrompt += _userInput + "\n";
@@ -237,11 +223,33 @@
     {
         modalImageSrc = imageSrc;
         isModalOpen = true;
+        
     }
     private void CloseModal()
     {
         modalImageSrc = null;
         isModalOpen = false;
+    }
+    private async Task OnAskClicked()
+    {
+        // If there's no user input, do nothing
+        if (string.IsNullOrWhiteSpace(_userInput))
+        {
+            return;
+        }
+
+        // Normalize input
+        _userInput = _userInput.Trim();
+
+        // Explicit UI control: use the Image Mode checkbox to route the request
+        if (isImageMode)
+        {
+            GenerateImageBytesAsync();
+        }
+        else
+        {
+            AskOpenAIStreamingAsync();
+        }
     }
     #endregion
 }
